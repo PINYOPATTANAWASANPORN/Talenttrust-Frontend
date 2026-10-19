@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, EscrowContract } from '@/lib/api';
+import { StatsStrip } from '@/components/escrow/StatsStrip';
 
 const short = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a);
 
@@ -9,6 +10,7 @@ export function EscrowDashboard() {
   const [contracts, setContracts] = useState<EscrowContract[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | 'new' | null>(null);
+  const [statsKey, setStatsKey] = useState(0);
   const [form, setForm] = useState({
     title: 'Website redesign',
     client: 'GCLIENT' + 'X'.repeat(49),
@@ -37,6 +39,7 @@ export function EscrowDashboard() {
     try {
       await fn();
       await load();
+      setStatsKey((k) => k + 1);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -63,7 +66,9 @@ export function EscrowDashboard() {
   };
 
   return (
-    <div className="dash">
+    <div>
+      <StatsStrip refreshTrigger={statsKey} />
+      <div className="dash">
       <form className="card form" onSubmit={create} aria-labelledby="new-escrow">
         <h3 id="new-escrow">New escrow</h3>
         <div className="field">
@@ -208,6 +213,7 @@ export function EscrowDashboard() {
           );
         })}
       </div>
+    </div>
     </div>
   );
 }

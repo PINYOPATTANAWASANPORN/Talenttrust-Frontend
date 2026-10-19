@@ -7,6 +7,15 @@ export interface Milestone {
   released: boolean;
 }
 
+export type Status = 'Created' | 'Funded' | 'Completed' | 'Disputed' | 'Resolved' | 'Cancelled';
+
+export interface Stats {
+  contracts: number;
+  byStatus: Record<Status, number>;
+  totalEscrowed: number;
+  totalReleased: number;
+}
+
 export interface EscrowContract {
   id: number;
   title: string;
@@ -17,7 +26,7 @@ export interface EscrowContract {
   totalAmount: number;
   fundedAmount: number;
   releasedAmount: number;
-  status: 'Created' | 'Funded' | 'Completed' | 'Disputed' | 'Resolved' | 'Cancelled';
+  status: Status;
   reputationIssued: boolean;
 }
 
@@ -40,4 +49,8 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
     throw new Error((data as { message?: string }).message || `Request failed (${res.status})`);
   }
   return data as T;
+}
+
+export async function getStats(): Promise<Stats> {
+  return api<Stats>('/api/v1/stats');
 }

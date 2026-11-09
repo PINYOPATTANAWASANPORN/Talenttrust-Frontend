@@ -3,6 +3,7 @@
 import { useId } from 'react';
 import type { EscrowContract } from '@/lib/api';
 import { milestoneState, type MilestoneStatus } from './milestoneState';
+import { computeProgressPercentage, formatAmount, fromApiNumber } from '@/lib/amount';
 
 export interface MilestoneTimelineProps {
   contract: EscrowContract;
@@ -14,9 +15,9 @@ export interface MilestoneTimelineProps {
   showSummary?: boolean;
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Status metadata (icon + readable label + colour token)
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 const STATUS_META: Record<
   MilestoneStatus,
   { icon: string; label: string; colorVar: string; ariaLabel: string }
@@ -34,7 +35,7 @@ const STATUS_META: Record<
     ariaLabel: 'Ready to release',
   },
   'awaiting-funds': {
-    icon: '⧗',
+    icon: '⏳',
     label: 'Awaiting funds',
     colorVar: 'var(--warn)',
     ariaLabel: 'Awaiting funds',
@@ -47,27 +48,34 @@ const STATUS_META: Record<
   },
 };
 
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Component
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 export function MilestoneTimeline({ contract, onRelease, busy = false, showSummary = true }: MilestoneTimelineProps) {
   // Unique per instance: several timelines render on the dashboard at once.
   const headingId = useId();
   const { milestones, totalAmount, releasedAmount, token } = contract;
-  const pct = totalAmount > 0 ? Math.round((releasedAmount / totalAmount) * 100) : 0;
+
+  const totalB = fromApiNumber(totalAmount);
+  const releasedB = fromApiNumber(releasedAmount);
+  const pct = computeProgressPercentage(releasedB, totalB);
+
+  const formattedTotal = formatAmount(totalB);
+  const formattedReleased = formatAmount(releasedB);
 
   return (
     <section className="mt-timeline" aria-labelledby={headingId}>
-      <h4 id={headingId} className="mt-title">
-        Milestones
+      {/* Visually hidden heading for accessibility landmark navigation */}
+      <h4 id={headingId} className="sr-only">
+        Milestone progress for escrow #{contract.id}
       </h4>
 
-      {/* Step list */}
       <ol className="mt-list" aria-label="Milestone timeline">
         {milestones.map((milestone, idx) => {
           const status = milestoneState(contract, idx);
           const meta = STATUS_META[status];
           const isLast = idx === milestones.length - 1;
+          const formattedAmount = formatAmount(fromApiNumber(milestone.amount));
 
           return (
             <li key={milestone.index} className="mt-step">
@@ -94,8 +102,8 @@ export function MilestoneTimeline({ contract, onRelease, busy = false, showSumma
                 <div className="mt-content">
                   <div className="mt-row">
                     <span className="mt-step-title">{milestone.title}</span>
-                    <span className="mt-amount">
-                      {milestone.amount} {token}
+                    <span className="mt-amount" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {formattedAmount} {token}
                     </span>
                   </div>
 
@@ -119,11 +127,11 @@ export function MilestoneTimeline({ contract, onRelease, busy = false, showSumma
                       className="mt-release-btn"
                       disabled={busy}
                       onClick={() => onRelease(milestone.index)}
-                      aria-label={`Release "${milestone.title}" (${milestone.amount} ${token})`}
+                      aria-label={`Release "${milestone.title}" (${formattedAmount} ${token})`}
                     >
                       {busy
                         ? 'Releasing…'
-                        : `Release "${milestone.title}" (${milestone.amount} ${token})`}
+                        : `Release "${milestone.title}" (${formattedAmount} ${token})`}
                     </button>
                   )}
                 </div>
@@ -144,32 +152,32 @@ export function MilestoneTimeline({ contract, onRelease, busy = false, showSumma
 
       {/* Cumulative progress summary */}
       {showSummary && (
-      <div className="mt-summary">
-        <div className="mt-summary-text">
-          <span>
-            Released{' '}
-            <strong>
-              {releasedAmount} {token}
-            </strong>{' '}
-            of{' '}
-            <strong>
-              {totalAmount} {token}
-            </strong>
-          </span>
-          <span className="mt-pct">{pct}%</span>
-        </div>
+        <div className="mt-summary">
+          <div className="mt-summary-text" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <span>
+              Released{' '}
+              <strong>
+                {formattedReleased} {token}
+              </strong>{' '}
+              of{' '}
+              <strong>
+                {formattedTotal} {token}
+              </strong>
+            </span>
+            <span className="mt-pct">{pct}%</span>
+          </div>
 
-        <div
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`${pct}% of contract value released`}
-          className="mt-progressbar"
-        >
-          <span className="mt-progressbar-fill" style={{ width: `${pct}%` }} aria-hidden="true" />
+          <div
+            role="progressbar"
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${pct}% of contract value released`}
+            className="mt-progressbar"
+          >
+            <span className="mt-progressbar-fill" style={{ width: `${pct}%` }} aria-hidden="true" />
+          </div>
         </div>
-      </div>
       )}
     </section>
   );

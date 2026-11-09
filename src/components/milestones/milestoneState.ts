@@ -1,4 +1,5 @@
 import type { EscrowContract } from '@/lib/api';
+import { fromApiNumber, gteAmounts, subAmounts } from '@/lib/amount';
 
 /**
  * The four possible states a milestone can be in.
@@ -18,6 +19,9 @@ const ACTIVE_STATUSES = new Set<EscrowContract['status']>(['Created', 'Funded'])
  * The balance available to release is `fundedAmount - releasedAmount`.
  * A milestone is releasable when the contract is active, the milestone is
  * not yet released, and the available balance >= its amount.
+ *
+ * Uses exact bigint arithmetic from amount.ts to eliminate floating-point
+ * rounding artifacts.
  *
  * Out-of-order releases are fully supported: each milestone is evaluated
  * independently — a later milestone can be releasable even if an earlier
@@ -42,8 +46,12 @@ export function milestoneState(
     return 'locked';
   }
 
-  const availableBalance = contract.fundedAmount - contract.releasedAmount;
-  if (availableBalance >= milestone.amount) {
+  const funded = fromApiNumber(contract.fundedAmount);
+  const released = fromApiNumber(contract.releasedAmount);
+  const milestoneAmount = fromApiNumber(milestone.amount);
+
+  const availableBalance = subAmounts(funded, released);
+  if (gteAmounts(availableBalance, milestoneAmount)) {
     return 'releasable';
   }
 

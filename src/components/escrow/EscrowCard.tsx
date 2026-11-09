@@ -3,6 +3,15 @@
 import type { ReactNode } from 'react';
 import type { EscrowContract } from '@/lib/api';
 import { MilestoneTimeline } from '@/components/milestones/MilestoneTimeline';
+import {
+  computeProgressPercentage,
+  formatAmount,
+  fromApiNumber,
+  gteAmounts,
+  gtAmounts,
+  subAmounts,
+  toApiNumber,
+} from '@/lib/amount';
 
 const short = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a);
 
@@ -49,10 +58,21 @@ export function EscrowCard({
 }: EscrowCardProps) {
   const next = contract.milestones.find((m) => !m.released);
   const active = contract.status === 'Created' || contract.status === 'Funded';
-  const pct = contract.totalAmount
-    ? Math.min(100, Math.max(0, Math.round((contract.releasedAmount / contract.totalAmount) * 100)))
-    : 0;
-  const progressValueText = `${contract.releasedAmount} of ${contract.totalAmount} ${contract.token} released`;
+
+  const totalB = fromApiNumber(contract.totalAmount);
+  const fundedB = fromApiNumber(contract.fundedAmount);
+  const releasedB = fromApiNumber(contract.releasedAmount);
+  const inEscrowB = subAmounts(fundedB, releasedB);
+  const remainingToFundB = subAmounts(totalB, fundedB);
+
+  const pct = computeProgressPercentage(releasedB, totalB);
+
+  const formattedReleased = formatAmount(releasedB);
+  const formattedTotal = formatAmount(totalB);
+  const formattedInEscrow = formatAmount(inEscrowB);
+  const formattedRemaining = formatAmount(remainingToFundB);
+
+  const progressValueText = `${formattedReleased} of ${formattedTotal} ${contract.token} released`;
   const headingId = `escrow-heading-${contract.id}`;
 
   return (
@@ -92,9 +112,9 @@ export function EscrowCard({
         <span style={{ width: `${pct}%` }} />
       </div>
 
-      <p className="small muted" style={{ margin: '8px 0 0' }}>
-        Released {contract.releasedAmount} / {contract.totalAmount} {contract.token} &middot; In escrow{' '}
-        {contract.fundedAmount - contract.releasedAmount} {contract.token}
+      <p className="small muted" style={{ margin: '8px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+        Released {formattedReleased} / {formattedTotal} {contract.token} &middot; In escrow{' '}
+        {formattedInEscrow} {contract.token}
       </p>
 
       <MilestoneTimeline
@@ -121,19 +141,19 @@ export function EscrowCard({
       )}
 
       <div className="row">
-        {active && contract.fundedAmount < contract.totalAmount && (
+        {active && gtAmounts(totalB, fundedB) && (
           <button
             type="button"
             className="btn btn-primary btn-sm"
             disabled={busy}
-            aria-label={`Fund ${contract.totalAmount - contract.fundedAmount} ${contract.token} for escrow #${contract.id} ${contract.title}`}
+            aria-label={`Fund ${formattedRemaining} ${contract.token} for escrow #${contract.id} ${contract.title}`}
             aria-describedby={headingId}
-            onClick={() => onFund?.(contract, contract.totalAmount - contract.fundedAmount)}
+            onClick={() => onFund?.(contract, toApiNumber(remainingToFundB))}
           >
-            Fund {contract.totalAmount - contract.fundedAmount} {contract.token}
+            Fund <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formattedRemaining}</span> {contract.token}
           </button>
         )}
-        {active && next && contract.fundedAmount - contract.releasedAmount >= next.amount && (
+        {active && next && gteAmounts(inEscrowB, fromApiNumber(next.amount)) && (
           <button
             type="button"
             className="btn btn-primary btn-sm"
